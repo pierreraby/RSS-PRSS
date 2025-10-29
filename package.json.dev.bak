@@ -1,0 +1,35 @@
+{
+  "name": "rss-prss",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
+    "build": "pnpm run clean && tsc",
+    "run-app": "node dist/index.js",
+    "start": "bash ./scripts/run-with-secrets.sh",
+    "bs": "pnpm run build && pnpm run start",
+    "dev-run": "pnpm run bs -- --folder /path/test",
+    "test": "echo \"TODO: Add tests with vitest\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0",
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "^1.2.0",
+    "ai": "^5.0.80",
+    "commander": "^14.0.2",
+    "fs-extra": "^11.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/fs-extra": "^11.0.4",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "rss-prss",
+  "version": "1.0.0",
+  "description": "PRRS: Prompt-based Recursive Repo Summarizer – Multi-lens code analysis via Grok/OpenRouter",
+  "author": "Pierre",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "bin": {
+    "prrs": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "build:ncc": "ncc build src/index.ts -o dist --license licenses.txt -m",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js prrs --path . --lenses architecture --output tree",
+    "self": "node dist/index.js prrs --path . --lenses architecture,security --depth 2 --output console",
+    "test": "node dist/test-prrs.js",
+    "cl": "rm -rf dist",
+    "clean": "rm -rf dist && pnpm run build:ncc",
+    "prepublishOnly": "pnpm run clean"
+    
+  },
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "^1.2.0",
+    "ai": "^5.0.81",
+    "commander": "^14.0.2",
+    "fs-extra": "^11.3.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^24.9.1",
+    "@vercel/ncc": "^0.38.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "code-analysis",
+    "llm",
+    "repo-summarizer",
+    "grok"
+  ],
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "bin": "dist/index.js"
+  }
+}
