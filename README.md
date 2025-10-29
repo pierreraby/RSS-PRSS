@@ -1,3 +1,4 @@
+# README.md
 # RSS-PRSS: Prompt-based Recursive Repo Summarizer (PRRS)
 
 RSS-PRSS (PRRS) is an advanced CLI tool for analyzing and summarizing code repositories using large language models (LLMs) like Grok via OpenRouter. It recursively scans your codebase, extracts key code chunks, ranks them by importance through customizable "lenses" (e.g., architecture, security, data flow), and generates high-level summaries with insights on structure, dependencies, and potential issues. Perfect for quick code reviews, security audits, or onboarding to unfamiliar repos – all powered by AI without manual effort.
@@ -184,6 +185,111 @@ For advanced LLM chaining, see "Advanced Usage" below.
        -d "{\"model\": \"claude-3-opus-20240229\", \"max_tokens\": 500, \"messages\": [{\"role\": \"user\", \"content\": \"Expand this code summary with refactoring suggestions: $SUMMARY\"}]}"
      ```
   - Or local: `echo "$SUMMARY" | ollama run mistral "Suggest improvements:"`.
+
+### Using PRRS Outputs for AI-Guided Coding
+PRRS summaries are ideal for feeding into another LLM to guide coding tasks like refactoring, adding features, or optimizations. The **JSON output** (`--output json`) is recommended as the primary file/result – it's structured, clean (no logs), and easy to extract for prompts. This creates an AI pipeline: Analyze repo → Extract insights → Generate code/suggestions.
+
+#### Step-by-Step Workflow
+1. **Generate Clean JSON Output** (focus on "seul résultat" without verbose noise):
+   ```
+   # Example: Analyze architecture + security on your repo
+   prrs --path /home/user/my-repo \
+     --lenses architecture,security \
+     --model g4f-no-reasoning \  # Faster, less fluff in summaries
+     --output json \
+     --depth 3 > prrs-result.json  # Pure structured output file
+   ```
+   - Result: `prrs-result.json` (~5-20kB) with keys like `{ "architecture": { "summary": "...", "children": [...] }, "security": { ... } }`.
+   - Avoid `--verbose` for chaining (keeps JSON pure; defaults to off).
+
+2. **Extract Relevant Summaries** (using `jq` for targeted text; install via `sudo apt install jq` if needed):
+   - **Full architecture summary** (high-level structure for coding context):
+     ```
+     jq -r '.architecture.summary' prrs-result.json > arch-summary.txt
+     ```
+   - **Combined lenses** (e.g., for secure coding guidance):
+     ```
+     jq -r '"Repo Analysis:\nArchitecture: " + (.architecture.summary | .) + "\n\nSecurity: " + (.security.summary | .)' prrs-result.json > guidance-prompt.txt
+     ```
+   - **Specific file insights** (e.g., guide refactor on a module):
+     ```
+     jq -r '.architecture.children[] | select(.path | contains("app.ts")) | .summary' prrs-result.json > app-ts-insights.txt
+     ```
+   - Output: Clean text files (~500-2000 words) ready for LLM prompts. For large summaries, truncate: `head -c 2000 guidance-prompt.txt > short-prompt.txt`.
+
+3. **Feed to an LLM for Coding Guidance**:
+   Use the extracted text as context in prompts: "Based on this repo analysis: [summary]. Task: [your coding need]. Generate code compatible with the described patterns."
+   
+   - **Local LLM (e.g., Ollama – free, offline)**:
+     Install Ollama (`curl -fsSL https://ollama.com/install.sh | sh`), pull a coding model (`ollama pull codellama` or `ollama pull llama3`).
+     ```
+     # Example: Add a feature based on architecture
+     SUMMARY=$(cat arch-summary.txt)
+     ollama run codellama "You are a senior TypeScript developer. Repo analysis: $SUMMARY
+
+     Task: Implement a new role-based auth controller (e.g., admin routes) using Express patterns from the summary. Generate full code for src/controllers/roles.ts, including middleware integration.
+
+     Output: 1. Brief explanation. 2. Complete code (no chit-chat)."
+     ```
+     - Result: LLM outputs code snippets tailored to your repo (e.g., imports matching deps from summary).
+
+   - **Remote LLM (e.g., Anthropic Claude via API – ~$0.01-0.05/query)**:
+     Set your API key (`export ANTHROPIC_API_KEY=sk-...`).
+     ```
+     SUMMARY=$(cat guidance-prompt.txt)  # Includes architecture + security
+     curl -s -X POST https://api.anthropic.com/v1/messages \
+       -H "x-api-key: $ANTHROPIC_API_KEY" \
+       -H "anthropic-version: 2023-06-01" \
+       -H "content-type: application/json" \
+       -d "{
+         \"model\": \"claude-3-sonnet-20240229\",
+         \"max_tokens\": 1500,
+         \"messages\": [
+           {
+             \"role\": \"user\",
+             \"content\": \"You are an expert Node.js/TypeScript architect. PRRS repo analysis: $SUMMARY
+
+             Task: Fix the CORS wildcard vulnerability from the security summary. Generate updated src/app.ts code with origin whitelisting (e.g., env-based domains). Ensure it fits the MVC structure.
+
+             Respond with: 1. Changes explanation. 2. Full refactored code. 3. Integration steps.\"
+           }
+         ]
+       }" | jq -r '.content[0].text'  # Clean text output
+     ```
+     - Result: Detailed guidance (e.g., "Update: Replace cors({ origin: '*' }) with { origin: process.env.ALLOWED_ORIGINS }... Code: [updated app.ts]").
+
+   - **IDE/Chat Interface (e.g., VS Code + GitHub Copilot, or Grok Web)**:
+     - Open `guidance-prompt.txt` in your LLM chat (e.g., Cursor AI, or paste into Grok browser).
+     - Prompt: "Repo PRRS summary: [paste]. Guide me to add a Prisma database layer compatible with controllers. Provide step-by-step code changes and snippets."
+     - LLM: Generates actionable steps (e.g., "1. Install: npm i prisma ; 2. Update package.json ; 3. In auth.ts: import PrismaClient...").
+
+4. **Automated Pipeline (Bash Script Example)**:
+   Create `ai-coder-guide.sh` for one-command workflow:
+   ```bash
+   #!/bin/bash
+   PATH_TO_REPO=${1:-"."}  # Default: current dir
+   TASK=${2:-"Suggest improvements"}  # e.g., "Add user registration endpoint"
+
+   # Step 1: Run PRRS
+   prrs --path "$PATH_TO_REPO" --lenses architecture,security --output json --model g4f-no-reasoning > temp.json
+   SUMMARY=$(jq -r '"Analysis: " + .architecture.summary + "\nSecurity: " + .security.summary' temp.json)
+
+   # Step 2: LLM Guidance (Ollama example; swap for API)
+   ollama run codellama "Repo analysis: $SUMMARY
+
+   Task: $TASK – Generate TypeScript code snippets for integration. Be concise and use patterns from the summary."
+
+   rm temp.json  # Cleanup
+   ```
+   - Make executable: `chmod +x ai-coder-guide.sh`.
+   - Run: `./ai-coder-guide.sh /my-repo "Fix auth flow based on security insights"`.
+
+#### Tips for Effective Coding Guidance
+- **Prompt Best Practices**: Always reference summary elements (e.g., "Use MVC patterns from architecture"). This keeps LLM grounded in your repo.
+- **Iterative Use**: Generate code → Implement → Re-run PRRS to validate (e.g., "Did security improve?").
+- **Token Limits**: For large outputs, use `--depth 2` or truncate extracts (~4k tokens max for most free LLMs).
+- **Alternatives**: If no jq, use `grep/sed` for extraction (e.g., `grep -A 20 '"summary"' prrs-result.json`). For other providers, adapt curl to OpenAI/Grok APIs.
+
 - **Limits & Tips**: Max 10 chunks/file; depth>3 on huge repos (e.g., monorepos) may hit token limits – subsample with `--depth 2`. Verbose for debugging.
 
 ## Project Structure
