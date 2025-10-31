@@ -15,14 +15,14 @@
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js prrs --path . --lenses architecture --output tree",
     "self": "node dist/index.js prrs --path . --lenses architecture,security --depth 2 --output console",
-    "test": "node dist/test-prrs.js",
+    "test": "node dist/test-prss.js",
     "cl": "rm -rf dist",
     "clean": "rm -rf dist && pnpm run build:ncc",
     "prepublishOnly": "pnpm run clean"
-    
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^1.2.0",
+    "@typescript-eslint/parser": "^8.46.2",
     "ai": "^5.0.81",
     "commander": "^14.0.2",
     "fs-extra": "^11.3.2"
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.9.1",
+    "@typescript-eslint/types": "^8.46.2",
     "@vercel/ncc": "^0.38.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
